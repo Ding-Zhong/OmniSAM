@@ -25,6 +25,51 @@ Extensive experimental results demonstrate that **OmniSAM outperforms the state-
 
 ## Preparation
 
+### 📁 Data
+Before getting started, please download the following datasets: 
+- [Cityscapes](https://www.cityscapes-dataset.com/) 
+- [SynPASS](https://drive.google.com/file/d/1u-5J13CD6MXpWB53apB-L6kZ3hK1JR77/view)
+- [DensePASS](https://github.com/chma1024/DensePASS)
+- [Stanford2D3D](https://arxiv.org/abs/1702.01105)
+
+Then organize them into the following structure:
+
+    data/
+    ├── cityscapes
+    │   ├── images
+    |   |   ├── test 
+    |   |   ├── train
+    |   |   └── val
+    │   └── segmentation
+    |       ├── test 
+    |       ├── train
+    |       └── val
+    ├── Stanford2D3D
+    │   ├── area_1
+    │   ├── area_2
+    │   ├── area_3
+    │   ├── area_4
+    │   ├── area_5a
+    │   ├── area_5b
+    │   └── area_6
+    ├── SynPASS
+    │   ├── img
+    │   │   ├── cloud
+    │   │   ├── fog
+    │   │   ├── rain
+    │   │   └── sun
+    │   └── semantic
+    │       ├── cloud
+    │       ├── fog
+    │       ├── rain
+    │       └── sun
+    ├── DensePASS
+    |   ├── gtFine
+    |   └── leftImg8bit
+    └── DensePASStrain
+        └── leftImg8bit
+    OmniSAM/
+
 ### 🔧 Environment Setup
 Create a new Conda environment and activate it:
 
@@ -44,7 +89,8 @@ Navigate to the model directory and install:
     pip install -e .
 
 
-### 📊 Getting Started
+## 📊 Getting Started
+
 Please execute the following commend for source domain model training on multiple gpus:
 
     torchrun --nnodes=1 --nproc_per_node=2 --master_port=29500 train_ddp.py --batch_size=4 --lr=6e-5 --num_epochs=10 --dataset='Cityscapes' --use_mem_bank --exp_name 'exp1' --backbone 'sam2_l' 
