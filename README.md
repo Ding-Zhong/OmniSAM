@@ -32,7 +32,8 @@ Before getting started, please download the following datasets:
 - [DensePASS](https://github.com/chma1024/DensePASS)
 - [Stanford2D3D](https://arxiv.org/abs/1702.01105)
 
-Then organize them into the following structure:
+Then organize them into the following structure.
+> ⚠️ Note: The `data/` folder should be placed **at the same level** as the `OmniSAM/` root directory.
 
     data/
     ├── cityscapes
@@ -110,11 +111,11 @@ To evaluate our model, please execute the following commend:
 - ⬜ Release the checkpoints for the adapted target domain models  
 
 
-## Acknowledgement
-Thanks to [SAM2](https://github.com/facebookresearch/sam2) team for their amazing work!
+## 🤝 Acknowledgement
+Thanks to [SAM2](https://github.com/facebookresearch/sam2) team for their amazing work and [Cityscapes](https://www.cityscapes-dataset.com/)/[SynPASS](https://drive.google.com/file/d/1u-5J13CD6MXpWB53apB-L6kZ3hK1JR77/view)/[DensePASS](https://github.com/chma1024/DensePASS)/[Stanford2D3D](https://arxiv.org/abs/1702.01105) teams for their valuable datasets!
 
 ## Reference
-If you find our work useful in your research, please feel free to cite our paper :)
+If you find this work useful in your research, please feel free to cite our paper :)
 
 ```bash
 @misc{zhong2025omnisamomnidirectionalsegmentmodel,
