@@ -5,6 +5,8 @@ Jialei Chen<sup>5</sup>, Shengyang Wu<sup>3</sup>, Linfeng Zhang<sup>6</sup>, Xu
 
 ¹AI Thrust, HKUST(GZ), ²CSE, HKUST, ³UMich, ⁴INSAIT, ⁵Nagoya University, ⁶SJTU  
 
+\* Equal contribution. † Corresponding author.
+
 ---
 
 ## Abstract
