@@ -1,8 +1,7 @@
-# OmniSAM: Omnidirectional Segment Anything Model for UDA in Panoramic Semantic Segmentation
+# OmniSAM: Omnidirectional Segment Anything Model for UDA in Panoramic Semantic Segmentation [![arXiv](https://img.shields.io/badge/arXiv-2503.07098-b31b1b.svg)](https://arxiv.org/abs/2503.07098)
 
 **Ding Zhong<sup>1,3,*</sup>, Xu Zheng<sup>1,4,*</sup>, Chenfei Liao<sup>1</sup>, Yuanhuiyi Lyu<sup>1</sup>, Jialei Chen<sup>5</sup>, Shengyang Wu<sup>3</sup>, Linfeng Zhang<sup>6</sup>, Xuming Hu<sup>1,2,†</sup>**  
 ¹AI Thrust, HKUST(GZ), ²CSE, HKUST, ³UMich, ⁴INSAIT, ⁵Nagoya University, ⁶SJTU  
-[arXiv:2503.07098](https://arxiv.org/pdf/2503.07098)
 
 ---
 
