@@ -31,7 +31,7 @@ Create a new Conda environment and activate it:
     conda create -n omnisam python=3.10
     conda activate omnisam
 
-Download SAM2's weight and upload it into the `sam2/checkpoints` directory.  
+Download SAM2's weight and upload it into the `sam/checkpoints` directory.  
    [Facebook Research SAM2 Repository](https://github.com/facebookresearch/segment-anything)
 
 Install dependencies:
@@ -40,7 +40,7 @@ Install dependencies:
 
 Navigate to the model directory and install:
 
-    cd sam2
+    cd sam
     pip install -e .
 
 
