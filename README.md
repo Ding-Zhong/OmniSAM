@@ -9,7 +9,7 @@ Jialei Chen<sup>5</sup>, Shengyang Wu<sup>3</sup>, Linfeng Zhang<sup>6</sup>, Xu
 
 ---
 
-## Abstract
+## 📄 Abstract
 
 *Segment Anything Model 2 (SAM2)* has emerged as a strong base model in various pinhole imaging segmentation tasks. However, when applying it to 360° domain, the significant field-of-view (FoV) gap between pinhole (70° × 70°) and panoramic images (180° × 360°) poses unique challenges. Two major concerns for this application include:
 
@@ -23,7 +23,7 @@ Extensive experimental results demonstrate that **OmniSAM outperforms the state-
 
 ![Performance Comparison](Figure/performance_comparison.jpg)
 
-## Framework
+## 🏗️ Framework
 ![OmniSAM Framework](Figure/omnisam_framework.jpg)
 
 ## Preparation
@@ -93,7 +93,7 @@ Navigate to the model directory and install:
     pip install -e .
 
 
-## 📊 Getting Started
+## 🚀 Getting Started
 
 Please execute the following commend for source domain model training on multiple gpus:
 
