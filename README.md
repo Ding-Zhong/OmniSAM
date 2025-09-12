@@ -100,12 +100,7 @@ To evaluate our model, please execute the following commend:
  
     python validation.py --backbone='sam2_s' --dataset='DensePASS' --use_mem_bank
 
-## ✅ TODO
-
-- ✅ Release source model training code  
-- ✅ Release domain adaptation code for the target domain  
-- ⬜ Release the checkpoints for the adapted target domain models  
-
+You can download our trained model from (https://drive.google.com/drive/folders/121HJ_8HXqTw6ne1iAjpzEMnb1RdRtpl-?usp=sharing).
 
 ## 🤝 Acknowledgement
 Thanks to [SAM2](https://github.com/facebookresearch/sam2) team for their awesome work and [Cityscapes](https://www.cityscapes-dataset.com/)/[SynPASS](https://drive.google.com/file/d/1u-5J13CD6MXpWB53apB-L6kZ3hK1JR77/view)/[DensePASS](https://github.com/chma1024/DensePASS)/[Stanford2D3D](https://arxiv.org/abs/1702.01105) teams for their valuable datasets!
