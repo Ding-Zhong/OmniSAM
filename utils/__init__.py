@@ -1,1 +1,0 @@
-from .adaptation import PrototypicalAdaptation

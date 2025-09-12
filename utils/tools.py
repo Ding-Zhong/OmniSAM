@@ -1,165 +1,165 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import numpy as np
+import torch.nn.functional as F
 
-def sliding_window_prediction(
-    logits_maps: np.ndarray,
-    coords_list: np.ndarray,
-    orig_size: tuple
+import numpy as np
+import torch
+
+@torch.no_grad()
+def merge_width_scatter_np(
+    logits_np: np.ndarray,      # (N, B, C, H_patch, W_patch)
+    orig_size: tuple,           # (H_full, W_full)
+    W_patch: int,               # patch width
+    stride_w: int,              # horizontal stride
+    passes: int = 2,            # forward + backward = 2; only one pass = 1
+    device: str = "cuda",
+    return_probs: bool = False, # True to return (N,C,H,W) probabilities, otherwise return argmax
 ):
+    """
+    Fast merging along width direction using scatter_add_ to add all patch probabilities back to the original image.
+    Assumptions:
+      - Patches are extracted using sliding windows: from left to right for L patches; if passes=2, also from right to left
+      - H_patch == H_full (otherwise, vertical offset handling is needed)
+    """
+    N, B, C, H_patch, Wp = logits_np.shape
+    H_full, W_full = orig_size
+    assert Wp == W_patch, "W_patch mismatch"
+    assert H_patch == H_full, "Current implementation assumes no vertical splitting"
 
-    N, B, C, H, W = logits_maps.shape
-    orig_H, orig_W = orig_size
-    
-    vote_map = np.zeros((N, orig_H, orig_W, C, 2), dtype=np.float32)
+    # Number of patches per pass
+    L = (W_full - W_patch) // stride_w + 1
+    assert B % L == 0, f"B={B}, L={L}, passes={passes} mismatch"
+    assert B // L == passes, f"passes={passes} inconsistent with input"
 
-    for n in range(N):
-        for b in range(B):
-            top_x, top_y = coords_list[n, b]
-            
-            sub_logits = logits_maps[n, b]
+    # Convert numpy to torch
+    logits = torch.from_numpy(logits_np).to(device=device, dtype=torch.float32)  # (N,B,C,H,Wp)
 
-            sub_pred_class = np.argmax(sub_logits, axis=0)  # (H, W)
-            sub_max_logit  = np.max(sub_logits, axis=0)     # (H, W)
-            
-            x_indices = np.arange(H) + top_x  # [top_x, top_x+1, ..., top_x+H-1]
-            y_indices = np.arange(W) + top_y  # [top_y, top_y+1, ..., top_y+W-1]
+    # Softmax within each patch
+    probs = torch.softmax(logits, dim=2)  # (N,B,C,H,Wp)
 
-            valid_x = (x_indices >= 0) & (x_indices < orig_H)
-            valid_y = (y_indices >= 0) & (y_indices < orig_W)
-            
-            if not np.any(valid_x) or not np.any(valid_y):
-                continue  
-            
-            x_indices = x_indices[valid_x]
-            y_indices = y_indices[valid_y]
-            
-            xx, yy = np.meshgrid(x_indices, y_indices, indexing='ij')
-            
-            sub_x = np.arange(H)[valid_x]  # e.g. [0, 1, 2, ...] 
-            sub_y = np.arange(W)[valid_y]
-            sub_xx, sub_yy = np.meshgrid(sub_x, sub_y, indexing='ij')
-            
+    # Reshape: (N,B,C,H,Wp) -> (N,passes,L,C,H,Wp)
+    probs = probs.view(N, passes, L, C, H_patch, W_patch)
 
-            # (M,)；M = len(x_indices)*len(y_indices)
-            sub_pred_class_2d = sub_pred_class[sub_xx, sub_yy]   # (len(x_indices), len(y_indices))
-            sub_max_logit_2d  = sub_max_logit[sub_xx, sub_yy]
-            classes_flat = sub_pred_class_2d.ravel()
-            logits_flat  = sub_max_logit_2d.ravel()
-            
-            x_flat = xx.ravel()
-            y_flat = yy.ravel()
-            
-            np.add.at(vote_map, (n, x_flat, y_flat, classes_flat, 0), 1)
-            
-            current_logits = vote_map[n, x_flat, y_flat, classes_flat, 1]
-            mask = logits_flat > current_logits
-            
-            if np.any(mask):
-                x_update = x_flat[mask]
-                y_update = y_flat[mask]
-                c_update = classes_flat[mask]
-                new_vals = logits_flat[mask]
-                
-                vote_map[n, x_update, y_update, c_update, 1] = new_vals
-    
-    counts = vote_map[..., 0]  # (N, orig_H, orig_W, C)
-    confs  = vote_map[..., 1]  # (N, orig_H, orig_W, C)
+    # Align and average different passes (assuming pass=2 and the second is reverse)
+    if passes == 1:
+        probs = probs[:, 0]                      # (N,L,C,H,Wp)
+    elif passes == 2:
+        forward  = probs[:, 0]                   # (N,L,C,H,Wp)
+        backward = probs[:, 1].flip(1)           # Reverse to match forward order
+        probs = 0.5 * (forward + backward)       # (N,L,C,H,Wp)
+    else:
+        # General case: average all passes (adjust if special order is needed)
+        probs = probs.mean(dim=1)                # (N,L,C,H,Wp)
 
-    max_count = np.max(counts, axis=-1, keepdims=True)
-    
-    candidate_mask = (counts == max_count)  # (N, orig_H, orig_W, C)
-    
-    confs_candidate = np.where(candidate_mask, confs, -np.inf)
-    best_class = np.argmax(confs_candidate, axis=-1)  # (N, orig_H, orig_W)
-    
-    return best_class
+    # Output tensor
+    out = torch.zeros((N, C, H_full, W_full), device=device, dtype=probs.dtype)
 
+    # Start column index for each patch
+    starts = torch.arange(0, W_full - W_patch + 1, stride_w, device=device)  # (L,)
+    # Column offsets within each patch
+    offs = torch.arange(W_patch, device=device)  # (Wp,)
+    # Global column indices for each patch
+    idx = starts[:, None] + offs[None, :]        # (L, Wp)
 
-def sliding_window_prediction_uncertainty(
-    logits_maps: np.ndarray,
-    coords_list: np.ndarray,
-    orig_size: tuple,
-    threshold: float
+    # Reorder probs to match scatter_add_ shape
+    # probs: (N,L,C,H,Wp) -> (N,C,H,L,Wp)
+    vals = probs.permute(0, 2, 3, 1, 4)          # (N,C,H,L,Wp)
+    # Expand idx to match vals shape
+    idx_exp = idx.view(1, 1, 1, L, W_patch).expand_as(vals)
+
+    # Reshape to (N,C,H,L*Wp)
+    vals_r = vals.reshape(N, C, H_full, L * W_patch)
+    idx_r  = idx_exp.reshape(N, C, H_full, L * W_patch)
+
+    # Perform scatter_add_ along width dimension
+    out.scatter_add_(3, idx_r, vals_r)
+
+    if return_probs:
+        return out.cpu().numpy()  # (N,C,H,W)
+
+    pred = out.argmax(dim=1).cpu().numpy()  # (N,H,W)
+    return pred
+
+@torch.no_grad()
+def merge_width_scatter_np_uncertainty(
+    logits_np: np.ndarray,      # (N, B, C, H_patch, W_patch)
+    orig_size: tuple,           # (H_full, W_full)
+    W_patch: int,               # patch width
+    stride_w: int,              # horizontal stride
+    passes: int = 2,            # forward + backward = 2; only one pass = 1
+    device: str = "cuda",
+    return_probs: bool = False, # True to return (N,C,H,W) probabilities, otherwise return argmax
+    threshold = 0.5,
+    ignore_index = 255,
 ):
-    N, B, C, H, W = logits_maps.shape
-    orig_H, orig_W = orig_size
+    """
+    Fast merging along width direction using scatter_add_ to add all patch probabilities back to the original image.
+    Assumptions:
+      - Patches are extracted using sliding windows: from left to right for L patches; if passes=2, also from right to left
+      - H_patch == H_full (otherwise, vertical offset handling is needed)
+    """
+    N, B, C, H_patch, Wp = logits_np.shape
+    H_full, W_full = orig_size
+    assert Wp == W_patch, "W_patch mismatch"
+    assert H_patch == H_full, "Current implementation assumes no vertical splitting"
 
-    coverage_map = np.zeros((N, orig_H, orig_W), dtype=np.int32)
-    vote_map = np.zeros((N, orig_H, orig_W, C, 3), dtype=np.float32)
-    vote_map[..., 2] = np.inf  
+    # Number of patches per pass
+    L = (W_full - W_patch) // stride_w + 1
+    assert B % L == 0, f"B={B}, L={L}, passes={passes} mismatch"
+    assert B // L == passes, f"passes={passes} inconsistent with input"
 
-    for n in range(N):
-        for b in range(B):
-            top_x, top_y = coords_list[n, b]
-            sub_logits = logits_maps[n, b]
-            
-            sub_pred_class = np.argmax(sub_logits, axis=0)
-            sub_max_logit  = np.max(sub_logits, axis=0)
-            
-            x_indices = np.arange(H) + top_x
-            y_indices = np.arange(W) + top_y
+    # Convert numpy to torch
+    logits = torch.from_numpy(logits_np).to(device=device, dtype=torch.float32)  # (N,B,C,H,Wp)
 
-            valid_x = (x_indices >= 0) & (x_indices < orig_H)
-            valid_y = (y_indices >= 0) & (y_indices < orig_W)
-            if not np.any(valid_x) or not np.any(valid_y):
-                continue
+    # Softmax within each patch
+    probs = torch.softmax(logits, dim=2)  # (N,B,C,H,Wp)
 
-            x_indices = x_indices[valid_x]
-            y_indices = y_indices[valid_y]
+    # Reshape: (N,B,C,H,Wp) -> (N,passes,L,C,H,Wp)
+    probs = probs.view(N, passes, L, C, H_patch, W_patch)
 
-            xx, yy = np.meshgrid(x_indices, y_indices, indexing='ij')
+    # Align and average different passes (assuming pass=2 and the second is reverse)
+    if passes == 1:
+        probs = probs[:, 0]                      # (N,L,C,H,Wp)
+    elif passes == 2:
+        forward  = probs[:, 0]                   # (N,L,C,H,Wp)
+        backward = probs[:, 1].flip(1)           # Reverse to match forward order
+        probs = 0.5 * (forward + backward)       # (N,L,C,H,Wp)
+    else:
+        # General case: average all passes (adjust if special order is needed)
+        probs = probs.mean(dim=1)                # (N,L,C,H,Wp)
 
-            sub_x = np.arange(H)[valid_x]
-            sub_y = np.arange(W)[valid_y]
-            sub_xx, sub_yy = np.meshgrid(sub_x, sub_y, indexing='ij')
+    # Output tensor
+    out = torch.zeros((N, C, H_full, W_full), device=device, dtype=probs.dtype)
 
-            sub_pred_class_2d = sub_pred_class[sub_xx, sub_yy]   # shape (len_x, len_y)
-            sub_max_logit_2d  = sub_max_logit[sub_xx, sub_yy]
+    # Start column index for each patch
+    starts = torch.arange(0, W_full - W_patch + 1, stride_w, device=device)  # (L,)
+    # Column offsets within each patch
+    offs = torch.arange(W_patch, device=device)  # (Wp,)
+    # Global column indices for each patch
+    idx = starts[:, None] + offs[None, :]        # (L, Wp)
 
-            classes_flat = sub_pred_class_2d.ravel()   # shape (M,)
-            logits_flat  = sub_max_logit_2d.ravel()    # shape (M,)
-            x_flat       = xx.ravel()                  # shape (M,)
-            y_flat       = yy.ravel()                  # shape (M,)
+    # Reorder probs to match scatter_add_ shape
+    # probs: (N,L,C,H,Wp) -> (N,C,H,L,Wp)
+    vals = probs.permute(0, 2, 3, 1, 4)          # (N,C,H,L,Wp)
+    # Expand idx to match vals shape
+    idx_exp = idx.view(1, 1, 1, L, W_patch).expand_as(vals)
 
-            coverage_map[n, x_flat, y_flat] += 1
-            np.add.at(vote_map, (n, x_flat, y_flat, classes_flat, 0), 1)
+    # Reshape to (N,C,H,L*Wp)
+    vals_r = vals.reshape(N, C, H_full, L * W_patch)
+    idx_r  = idx_exp.reshape(N, C, H_full, L * W_patch)
 
-            current_max_logits = vote_map[n, x_flat, y_flat, classes_flat, 1]
-            mask_max = logits_flat > current_max_logits
-            if np.any(mask_max):
-                x_update = x_flat[mask_max]
-                y_update = y_flat[mask_max]
-                c_update = classes_flat[mask_max]
-                new_vals = logits_flat[mask_max]
-                vote_map[n, x_update, y_update, c_update, 1] = new_vals
+    # Perform scatter_add_ along width dimension
+    out.scatter_add_(3, idx_r, vals_r)
 
-            current_min_logits = vote_map[n, x_flat, y_flat, classes_flat, 2]
-            mask_min = logits_flat < current_min_logits
-            if np.any(mask_min):
-                x_update = x_flat[mask_min]
-                y_update = y_flat[mask_min]
-                c_update = classes_flat[mask_min]
-                new_vals = logits_flat[mask_min]
-                vote_map[n, x_update, y_update, c_update, 2] = new_vals
+    if return_probs:
+        return out.cpu().numpy()  # (N,C,H,W)
 
-    best_class = np.full((N, orig_H, orig_W), 255, dtype=np.uint8)
-    class_counts = vote_map[..., 0]  # (N, H, W, C)
-    min_logits   = vote_map[..., 2]  # (N, H, W, C)
+    probs_max, pred = out.max(dim=1)  # (N,H,W), (N,H,W)
 
-    cond1 = (class_counts == coverage_map[..., None])  # shape (N, H, W, C)
-    cond2 = (min_logits > threshold)                   # shape (N, H, W, C)
-    candidate_mask = cond1 & cond2                     # shape (N, H, W, C)
-
-    sum_candidates = candidate_mask.sum(axis=-1)       # shape (N, H, W)
-    argmax_candidates = candidate_mask.argmax(axis=-1) # shape (N, H, W)
-
-    covered_mask = (coverage_map > 0)
-    unique_mask = (sum_candidates == 1) & covered_mask
-
-    best_class[unique_mask] = argmax_candidates[unique_mask]
-
-    return best_class
+    pred[probs_max < threshold] = ignore_index
+    return pred.cpu().numpy()
 
 def create_overlay(mask, color_map: dict, alpha: int = 127):
     """
@@ -176,15 +176,3 @@ def create_overlay(mask, color_map: dict, alpha: int = 127):
         overlay_data[indices, 2] = color[2]  # B
         overlay_data[indices, 3] = alpha     # A
     return overlay_data
-
-def load_model_weights(model: nn.Module, ckpt_path: str, remove_module_prefix: bool = False):
-    """
-    Load model weights from checkpoint.
-    If remove_module_prefix is True, remove the "module." prefix from keys.
-    """
-    ckpt = torch.load(ckpt_path, map_location='cpu')
-    if remove_module_prefix:
-        new_state_dict = {k[len("module."):]: v if k.startswith("module.") else v for k, v in ckpt.items()}
-        model.load_state_dict(new_state_dict)
-    else:
-        model.load_state_dict(ckpt)

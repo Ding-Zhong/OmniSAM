@@ -182,14 +182,6 @@ class LoRA_Sam(nn.Module):
         for w_B in self.w_Bs:
             nn.init.zeros_(w_B.weight)
 
-    # def forward(self, batched_input, multimask_output):
-    #     image_embedding = self.sam.forward_image(batched_input)
-
-    #     return self.sam._forward_sam_heads(image_embedding['vision_features'], high_res_features=image_embedding['backbone_fpn'][:2], multimask_output=multimask_output) # , image_size
-
     def forward(self, batched_input):
         return self.sam.forward_image(batched_input)
-
-    # def forward(self, x: Tensor) -> Tensor:
-    #     return self.lora_vit(x)
-
+        
