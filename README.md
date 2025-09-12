@@ -21,10 +21,8 @@ Specifically, to bridge the first gap, OmniSAM first divides the panorama into s
 For the second gap, OmniSAM fine-tunes the pretrained image encoder and reinitializes the mask decoder for semantic prediction. An FoV-based prototypical adaptation module with dynamic pseudo label update mechanism is also introduced to enhance the alignment of memory and backbone features, thereby improving model generalization ability across different sizes of source models.
 Extensive experimental results demonstrate that **OmniSAM outperforms the state-of-the-art methods by large margins**, e.g., **79.06% (10.22↑)** on SPin8-to-SPan8, **62.46% (6.58↑)** on CS13-to-DP13.
 
-![Performance Comparison](Figure/performance_comparison.jpg)
-
 ## 🏗️ Framework
-![OmniSAM Framework](Figure/omnisam_framework.jpg)
+![OmniSAM Framework](assets/omnisam_framework.png)
 
 ## Preparation
 
@@ -40,11 +38,11 @@ Then organize them into the following structure.
 
     data/
     ├── cityscapes
-    │   ├── images
+    │   ├── leftImg8bit
     |   |   ├── test 
     |   |   ├── train
     |   |   └── val
-    │   └── segmentation
+    │   └── gtFine
     |       ├── test 
     |       ├── train
     |       └── val
@@ -70,7 +68,7 @@ Then organize them into the following structure.
     ├── DensePASS
     |   ├── gtFine
     |   └── leftImg8bit
-    └── DensePASStrain
+    └── WildPASS
         └── leftImg8bit
     OmniSAM/
 
@@ -87,25 +85,20 @@ Install dependencies:
 
     pip install -r requirements.txt
 
-Navigate to the model directory and install:
-
-    cd sam
-    pip install -e .
-
 
 ## 🚀 Getting Started
 
 Please execute the following commend for source domain model training on multiple gpus:
 
-    torchrun --nnodes=1 --nproc_per_node=2 --master_port=29500 train_ddp.py --batch_size=4 --lr=6e-5 --num_epochs=10 --dataset='Cityscapes' --use_mem_bank --exp_name 'exp1' --backbone 'sam2_l' 
+    torchrun --nnodes=1 --nproc_per_node=2 --master_port=29500 train.py --batch_size=8 --lr=1e-4 --num_epochs=10 --dataset='Cityscapes' --use_mem_bank --exp_name 'exp1' --backbone 'sam2_s' 
 
-After you obtain a source model, you can use `adapt_sam2.py` for domain adaptation:
+After you obtain a source model, you can use `adaptation.py` for domain adaptation:
 
-    python adapt_sam2.py --lr=1e-5 --batch_size=2 --alpha=0.3 --num_epochs=9 --backbone='sam2_b+' --dataset='cityscapes'
+    python adaptation.py
 
 To evaluate our model, please execute the following commend:
  
-    python validation.py --batchsize=5 --backbone='sam2_b+' --dataset='DensePASS' --use_mem_bank
+    python validation.py --backbone='sam2_s' --dataset='DensePASS' --use_mem_bank
 
 ## ✅ TODO
 
@@ -115,7 +108,7 @@ To evaluate our model, please execute the following commend:
 
 
 ## 🤝 Acknowledgement
-Thanks to [SAM2](https://github.com/facebookresearch/sam2) team for their amazing work and [Cityscapes](https://www.cityscapes-dataset.com/)/[SynPASS](https://drive.google.com/file/d/1u-5J13CD6MXpWB53apB-L6kZ3hK1JR77/view)/[DensePASS](https://github.com/chma1024/DensePASS)/[Stanford2D3D](https://arxiv.org/abs/1702.01105) teams for their valuable datasets!
+Thanks to [SAM2](https://github.com/facebookresearch/sam2) team for their awesome work and [Cityscapes](https://www.cityscapes-dataset.com/)/[SynPASS](https://drive.google.com/file/d/1u-5J13CD6MXpWB53apB-L6kZ3hK1JR77/view)/[DensePASS](https://github.com/chma1024/DensePASS)/[Stanford2D3D](https://arxiv.org/abs/1702.01105) teams for their valuable datasets!
 
 ## Reference
 If you find this work useful in your research, please feel free to cite our paper :)

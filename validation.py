@@ -18,8 +18,6 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
 from utils.metrics import fast_hist, per_class_iu
-# from dataset.adaption.stanford_pin8_dataset_sw import StanfordPin8DataSet
-# from dataset.adaption.stanford_pan8_dataset_sw_re import StanfordPan8TestDataSet
 from dataset.DensePASS import DensePASS13
 from sam.sam.build_sam import build_sam2
 from model.model import OmniSAM, OmniSAM_adapt
@@ -153,9 +151,7 @@ def build_dataset_and_loader(args: argparse.Namespace):
         root_syn = "data/DensePASS"
         val_list = "dataset/densepass_list/val.txt"
         syn_w, syn_h = 4096, 1024
-        # syn_w, syn_h = 2048, 512
         sw_w_stride, sw_size = 384, 1024
-        # sw_w_stride, sw_h_stride, sw_size = 512, 512, 512
         assert (syn_w - sw_size) % sw_w_stride == 0 and  sw_w_stride <= sw_size
         val_dataset = DensePASS13(root_syn, val_list, crop_size=(syn_w, syn_h), sliding_window=(sw_w_stride, sw_size), passes=2)
 
@@ -176,7 +172,7 @@ def build_sam_model(args: argparse.Namespace, device: torch.device) -> nn.Module
     sam = build_sam2(model_cfg, sam2_checkpoint, device=device)
     model = OmniSAM_adapt(sam, num_classes=args.num_classes, num_maskmem=args.num_maskmem).to(device)
 
-    best_ckpt_path = "data_pd_cg_src_2000_05/checkpoints/Cityscapes/sam2_s/best_sam2_s_iou58.95.pth"
+    best_ckpt_path = "" # the checkpoint file path
 
     state_dict = torch.load(best_ckpt_path, map_location="cpu")
 
@@ -189,7 +185,6 @@ def build_sam_model(args: argparse.Namespace, device: torch.device) -> nn.Module
 
     return model
 
-# omnisam_s: 57.08 (384) 57.21 (512) 56.52 (768) 56.78 (1024) 53.97 (192) 53.72 (256) 53.85 (384) 54.13 (512)
 def main():
     parser = argparse.ArgumentParser(description='PyTorch Single-GPU Training Example')
     parser.add_argument('--seed', type=int, default=1234, metavar='S',
@@ -197,7 +192,7 @@ def main():
     parser.add_argument('--backbone', type=str, default='sam2_s',
                         help='Backbone model: sam2_l | sam2_b+ | sam2_s | sam2_t')
     parser.add_argument('--dataset', type=str, default='DensePASS',
-                        help='Dataset: Stanford2D3D | SynPASS | DensePASS | DensePASStrain')
+                        help='Dataset: Stanford2D3D | DensePASS')
     parser.add_argument('--use_mem_bank', action='store_true',
                         help='Whether to use memory bank')
     parser.add_argument('--batch_size', type=int, default=1, metavar='N',
